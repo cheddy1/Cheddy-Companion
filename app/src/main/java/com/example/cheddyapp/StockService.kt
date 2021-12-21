@@ -1,7 +1,11 @@
 package com.example.cheddyapp
 
-interface StockService  {
+import com.google.gson.JsonObject
+import retrofit2.Call
+import retrofit2.http.GET
+import retrofit2.http.Url
 
-    @GET( value: "")
-    fun getSingleCurPrice()
+interface StockService  {
+    @GET
+    fun getSingleCurPrice(@Url url: String): Call<JsonObject>
 }
