@@ -1,4 +1,4 @@
-package com.example.cheddyapp.ui.main
+package com.example.cheddyapp
 
 interface StockService  {
 
