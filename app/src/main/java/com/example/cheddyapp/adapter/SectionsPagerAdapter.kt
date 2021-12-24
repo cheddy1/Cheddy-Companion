@@ -9,7 +9,6 @@ import com.example.cheddyapp.fragment.BrokerFragment
 import com.example.cheddyapp.fragment.RothFragment
 
 private const val NUM_TABS = 2
-private const val TAG = "ViewPagerAdapter"
 class ViewPagerAdapter(fragmentManager: FragmentManager, lifecycle: Lifecycle) :
     FragmentStateAdapter(fragmentManager, lifecycle) {
 
@@ -18,7 +17,6 @@ class ViewPagerAdapter(fragmentManager: FragmentManager, lifecycle: Lifecycle) :
     }
 
     override fun createFragment(position: Int): Fragment {
-        Log.i(TAG, "position: $position")
         when (position) {
             0 -> return RothFragment()
             1 -> return BrokerFragment()
