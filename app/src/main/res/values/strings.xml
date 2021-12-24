@@ -2,4 +2,9 @@
     <string name="app_name">Cheddy Companion</string>
     <string name="tab_text_1">Roth IRA</string>
     <string name="tab_text_2">Brokerage</string>
+
+    <string name="loading">Loading…</string>
+
+
+
 </resources>
