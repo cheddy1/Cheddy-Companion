@@ -19,7 +19,6 @@ class ViewPagerAdapter(fragmentManager: FragmentManager, lifecycle: Lifecycle) :
     override fun createFragment(position: Int): Fragment {
         when (position) {
             0 -> return RothFragment()
-            1 -> return BrokerFragment()
         }
         return BrokerFragment()
     }
