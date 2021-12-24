@@ -4,8 +4,9 @@ import com.google.gson.annotations.SerializedName
 
 data class Ticker   (
     val ticker: String
-        )
+    )
 
 data class StockData    (
-    @SerializedName("lastPrice") val lastPrice: Double
+    @SerializedName("lastPrice") val lastPrice: Double,
+    @SerializedName("netChange") val netChange: Double
     )
