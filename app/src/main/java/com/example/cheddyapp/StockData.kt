@@ -8,5 +8,6 @@ data class Ticker   (
 
 data class StockData    (
     @SerializedName("lastPrice") val lastPrice: Double,
-    @SerializedName("netChange") val netChange: Double
+    @SerializedName("netChange") val netChange: Double,
+    @SerializedName("description") val description: String
     )
