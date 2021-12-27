@@ -11,7 +11,6 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonObject
-import kotlinx.coroutines.channels.ticker
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -42,13 +41,14 @@ private val rothTickerList = arrayOf(
 
 class StockDataHandler(private val tab : String, private val activity: FragmentActivity?, private val cLayout: ConstraintLayout, private val swipeContainer: SwipeRefreshLayout) {
     private var index: Int = 0
+    private var curValue: Double = 0.0
     val TAG = "StockDataHandler"
     private lateinit var lastPerc: TextView
     private lateinit var lastDesc: TextView
     private lateinit var tickerData: JsonObject
     private lateinit var brokerTickerString: String
     private lateinit var tickerList: Array<String>
-
+    private var amountOwned: Double = 0.0
 
     fun fetchStockData() {
         val gson = GsonBuilder().setDateFormat("yyyy-MM-dd'T'HH:mm:ssZ").create()
@@ -82,10 +82,72 @@ class StockDataHandler(private val tab : String, private val activity: FragmentA
     }
     private fun generateTextViews() {
         index = 0
-        for (ticker in tickerList) {
+        curValue = 0.0
+        val curValueText = TextView(activity)
+        curValueText.textSize = 24F
+        curValueText.setTextColor(Color.parseColor("#FFFFFF"))
+        curValueText.id = View.generateViewId()
 
-            val values = Gson().fromJson(tickerData.get(ticker), StockData::class.java)
+        for (ticker in tickerList) {
             val constraintSet = ConstraintSet()
+            val values = Gson().fromJson(tickerData.get(ticker), StockData::class.java)
+            if (tab == "roth") {
+                when (ticker) {
+                    "VTI" -> {
+                        amountOwned = 6.0222
+                    }
+                    "VXUS" -> {
+                        amountOwned = 11.0408
+                    }
+                    "VIOV" -> {
+                        amountOwned = 2.0108
+                    }
+                    "QQQM" -> {
+                        amountOwned = 2.0012
+                    }
+                    "QQQJ" -> {
+                        amountOwned = 6.0015
+                    }
+                }
+            }
+            else if (tab == "broker") {
+                when (ticker) {
+                    "VTI" -> {
+                        amountOwned = 2.0064
+                    }
+                    "VXUS" -> {
+                        amountOwned = 8.011
+                    }
+                    "AVUV" -> {
+                        amountOwned = 5.0313
+                    }
+                    "QQQM" -> {
+                        amountOwned = 1.0012
+                    }
+                    "QQQJ" -> {
+                        amountOwned = 5.0036
+                    }
+                    "ARKF" -> {
+                        amountOwned = 5.0
+                    }
+                    "ICLN" -> {
+                        amountOwned = 5.044
+                    }
+                    "TWTR" -> {
+                        amountOwned = 3.5481
+                    }
+                    "ASTS" -> {
+                        amountOwned = 13.0
+                    }
+                    "GENI" -> {
+                        amountOwned = 9.0
+                    }
+                    "TTOO" -> {
+                        amountOwned = 130.0
+                    }
+                }
+            }
+            curValue += values.lastPrice * amountOwned
 
             val tickerText = TextView(activity)
             tickerText.text = ticker
@@ -119,8 +181,8 @@ class StockDataHandler(private val tab : String, private val activity: FragmentA
             } else {
                 percText.setTextColor(Color.parseColor("#FF532F"))
             }
-            val rounded = String.format("%.2f", tempPerc) + "%"
-            percText.text = rounded
+            val roundedPerc = String.format("%.2f", tempPerc) + "%"
+            percText.text = roundedPerc
             percText.textSize = 12F
             percText.id = View.generateViewId()
             cLayout.addView(percText, index)
@@ -129,19 +191,34 @@ class StockDataHandler(private val tab : String, private val activity: FragmentA
             constraintSet.clear(cLayout.id)
             constraintSet.clone(cLayout)
 
-            if (index < 5) {
+            constraintSet.connect(
+                curValueText.id,
+                ConstraintSet.TOP,
+                cLayout.id,
+                ConstraintSet.TOP,
+                30
+            )
+            constraintSet.connect(
+                curValueText.id,
+                ConstraintSet.START,
+                cLayout.id,
+                ConstraintSet.START,
+                30
+            )
+
+            if (index < 6) {
                 constraintSet.connect(
                     tickerText.id,
                     ConstraintSet.TOP,
-                    cLayout.id,
-                    ConstraintSet.TOP,
+                    curValueText.id,
+                    ConstraintSet.BOTTOM,
                     30
                 )
                 constraintSet.connect(
                     priceText.id,
                     ConstraintSet.TOP,
-                    cLayout.id,
-                    ConstraintSet.TOP,
+                    curValueText.id,
+                    ConstraintSet.BOTTOM,
                     30
                 )
             } else {
@@ -202,6 +279,9 @@ class StockDataHandler(private val tab : String, private val activity: FragmentA
             constraintSet.applyTo(cLayout)
             swipeContainer.isRefreshing = false
         }
+        val curValueString = "$"+String.format("%.2f", curValue)
+        curValueText.text = curValueString
+        cLayout.addView(curValueText, index)
     }
 
 }
