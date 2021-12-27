@@ -7,3 +7,11 @@ data class StockData    (
     @SerializedName("netChange") val netChange: Double,
     @SerializedName("description") val description: String
     )
+
+data class BrokerStockOwned (
+    val VTI: Double,
+    val VXUS: Double,
+    val VIOV: Double,
+    val QQQM: Double,
+    val QQQJ: Double
+        )
