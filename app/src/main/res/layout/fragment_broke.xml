@@ -1,16 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.core.widget.NestedScrollView
+<androidx.swiperefreshlayout.widget.SwipeRefreshLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/brokerScroll"
+    android:id="@+id/brokeSwipe"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:fillViewport="true"
-    android:scrollbars="none" >
-        <androidx.constraintlayout.widget.ConstraintLayout
+    android:layout_height="match_parent">
+        <androidx.core.widget.NestedScrollView
+            android:id="@+id/brokerScroll"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            tools:context="com.example.cheddyapp.fragment.BrokerFragment"
-            android:id="@+id/brokerConstraint">
-        </androidx.constraintlayout.widget.ConstraintLayout>
-</androidx.core.widget.NestedScrollView>
+            android:fillViewport="true"
+            android:scrollbars="none" >
+                <androidx.constraintlayout.widget.ConstraintLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    tools:context="com.example.cheddyapp.fragment.BrokerFragment"
+                    android:id="@+id/brokerConstraint">
+                </androidx.constraintlayout.widget.ConstraintLayout>
+        </androidx.core.widget.NestedScrollView>
+</androidx.swiperefreshlayout.widget.SwipeRefreshLayout>

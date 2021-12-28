@@ -20,7 +20,7 @@ class RothFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View {
         _binding = FragmentRothBinding.inflate(inflater, container, false)
-        swipeContainer = requireActivity().findViewById(R.id.swipeContainer)
+        swipeContainer = binding.rothSwipe
         val stockDataHandler = StockDataHandler("roth", this.activity, binding.rothConstraint, swipeContainer)
         swipeContainer.setOnRefreshListener {
             stockDataHandler.fetchStockData()
