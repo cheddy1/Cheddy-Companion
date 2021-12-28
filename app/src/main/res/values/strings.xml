@@ -4,7 +4,11 @@
     <string name="tab_text_2">Brokerage</string>
 
     <string name="loading">Loading…</string>
-
+    <string name="info">Info</string>
+    <string name="ticker">Ticker</string>
+    <string name="weight">Weight</string>
+    <string name="owned"># Owned</string>
+    <string name="edit_stocks">Edit Stocks</string>
 
 
 </resources>
