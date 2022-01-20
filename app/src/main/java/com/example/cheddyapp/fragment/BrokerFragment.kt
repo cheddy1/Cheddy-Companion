@@ -21,7 +21,13 @@ class BrokerFragment : Fragment() {
     ): View {
         _binding = FragmentBrokeBinding.inflate(inflater, container, false)
         swipeContainer = binding.brokeSwipe
-        val stockDataHandler = StockDataHandler("broker", this.activity, binding.brokerConstraint, swipeContainer)
+        val stockDataHandler = StockDataHandler(
+            "broker",
+            this.activity,
+            binding.brokerConstraint,
+            swipeContainer,
+            requireContext()
+        )
         swipeContainer.setOnRefreshListener {
             stockDataHandler.fetchStockData()
         }
