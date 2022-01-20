@@ -21,13 +21,21 @@ class RothFragment : Fragment() {
     ): View {
         _binding = FragmentRothBinding.inflate(inflater, container, false)
         swipeContainer = binding.rothSwipe
-        val stockDataHandler = StockDataHandler("roth", this.activity, binding.rothConstraint, swipeContainer)
+        val stockDataHandler = StockDataHandler(
+            "roth",
+            this.activity,
+            binding.rothConstraint,
+            swipeContainer,
+            requireContext()
+        )
         swipeContainer.setOnRefreshListener {
             stockDataHandler.fetchStockData()
         }
         stockDataHandler.fetchStockData()
+
         return binding.root
     }
+
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
