@@ -1,9 +1,6 @@
 package com.example.cheddyapp
 
-import androidx.room.Dao
-import androidx.room.Insert
-import androidx.room.Query
-import androidx.room.Update
+import androidx.room.*
 import com.google.gson.JsonObject
 import retrofit2.Call
 import retrofit2.http.GET
@@ -18,12 +15,12 @@ interface StockService  {
 @Dao
 interface UserDataDao {
 
-    @Query("SELECT * FROM UserTickerData WHERE accountName = :accountName")
+    @Query("SELECT * FROM UserTickerData WHERE accountName = :accountName ORDER BY folioWeight DESC")
     fun getData(accountName: String): List<UserTickerData>
 
-    @Insert
-    fun insertData(data: UserTickerData)
+    @Query("DELETE FROM UserTickerData WHERE accountName = :accountName")
+    fun removeTickers(accountName: String)
 
-    @Update
-    fun updateData(data: UserTickerData)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun insertData(data: UserTickerData)
 }
