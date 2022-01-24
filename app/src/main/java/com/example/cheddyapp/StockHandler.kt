@@ -25,26 +25,6 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 private const val BASE_URL = "https://api.tdameritrade.com/v1/marketdata/"
-val brokerTickerList = arrayOf(
-    "VTI",
-    "VXUS",
-    "AVUV",
-    "QQQM",
-    "QQQJ",
-    "ARKF",
-    "ICLN",
-    "TWTR",
-    "ASTS",
-    "GENI",
-    "TTOO"
-)
-val rothTickerList = arrayOf(
-    "VTI",
-    "VXUS",
-    "VIOV",
-    "QQQM",
-    "QQQJ"
-)
 
 class StockDataHandler(
     private val tab: String,
@@ -54,7 +34,6 @@ class StockDataHandler(
     applicationContext: Context,
 ) {
     private var index: Int = 0
-    private var curValue: Double = 0.0
     val TAG = "StockDataHandler"
     private lateinit var lastPerc: TextView
     private lateinit var lastDesc: TextView
@@ -63,7 +42,8 @@ class StockDataHandler(
     private lateinit var lastOwnedInput: TextView
     private lateinit var lastPercFolioInput: TextView
     private lateinit var lastTickerInput: TextView
-    private var amountOwned: Double = 0.0
+    private lateinit var tickerListSQL: List<UserTickerData>
+    private val editTextList = mutableListOf<List<EditText>>()
 
     private val db = Room.databaseBuilder(
         applicationContext,
@@ -71,62 +51,108 @@ class StockDataHandler(
     ).allowMainThreadQueries().build()
 
     private val userDataDao = db.userDataDao()
-    private var tickerListSQL: List<UserTickerData> = userDataDao.getData(tab)
 
     fun fetchStockData() {
+        editTextList.clear()
         val gson = GsonBuilder().setDateFormat("yyyy-MM-dd'T'HH:mm:ssZ").create()
         val retrofit = Retrofit.Builder().baseUrl(BASE_URL)
             .addConverterFactory(GsonConverterFactory.create(gson)).build()
         val stockService = retrofit.create(StockService::class.java)
         val tickerList = mutableListOf<String>()
-        for (ticker in tickerListSQL){
+        tickerListSQL = userDataDao.getData(tab)
+        for (ticker in tickerListSQL) {
             tickerList += ticker.ticker
         }
+        Log.i("tickerlist: ", tickerList.toString())
         brokerTickerString = tickerList.joinToString(separator = "%2C") { it }
         stockService.getSingleCurPrice("$BASE_URL/quotes?apikey=LEAPZSMYRNJADCF7EJNKI6B09BRHGFHD&symbol=$brokerTickerString")
             .enqueue(object : Callback<JsonObject> {
                 override fun onResponse(call: Call<JsonObject>, response: Response<JsonObject>) {
-                    Log.i(TAG, "onResponse $response")
-                    if (response.body() == null) {
+                    if (response.body().toString() == "{}") {
                         Log.w(TAG, "Did not recieve valid response body")
+                        swipeContainer.isRefreshing = false
+                        generateEditButton(false)
                         return
                     }
                     tickerData = response.body()!!
-                    generateTextViews(tickerListSQL)
+                    generateEditButton(true)
                 }
 
                 override fun onFailure(call: Call<JsonObject>, t: Throwable) {
                     Log.e(TAG, "onFailure $t")
+                    swipeContainer.isRefreshing = false
                 }
 
             })
     }
 
-    private fun generateTextViews(tickerListSQL: List<UserTickerData>) {
+    private fun generateEditButton(valid: Boolean) {
         index = 0
-        curValue = 0.0
         cLayout.removeAllViews()
         val constraintSet = ConstraintSet()
-
-        val button = Button(activity)
-        button.text = "Edit Stocks"
-        button.setOnClickListener(View.OnClickListener {
+        val editInputButton = Button(activity)
+        editInputButton.text = "Edit Stocks"
+        editInputButton.setOnClickListener {
             swipeContainer.isEnabled = false
-            generateInputFields()
-        })
-        button.id = View.generateViewId()
-        cLayout.addView(button, index)
+            displayPopulatedList()
+            displaySubmitButton()
+        }
+        editInputButton.id = View.generateViewId()
+        cLayout.addView(editInputButton, index)
+        index += 1
+
+        constraintSet.clear(cLayout.id)
+        constraintSet.clone(cLayout)
+
+        constraintSet.connect(
+            editInputButton.id,
+            ConstraintSet.TOP,
+            cLayout.id,
+            ConstraintSet.TOP,
+            30
+        )
+        constraintSet.connect(
+            editInputButton.id,
+            ConstraintSet.START,
+            cLayout.id,
+            ConstraintSet.START,
+            30
+        )
+        constraintSet.connect(
+            editInputButton.id,
+            ConstraintSet.END,
+            cLayout.id,
+            ConstraintSet.END,
+            30
+        )
+        constraintSet.applyTo(cLayout)
+        if (valid) {
+            generateTextViews(editInputButton, constraintSet)
+        }
+
+    }
+
+    private fun generateTextViews(editInputButton: Button, constraintSet: ConstraintSet) {
+        var curValue = 0.0
+        var dailyPM = 0.0
 
         val curValueText = TextView(activity)
-        curValueText.textSize = 24F
+        curValueText.textSize = 20F
         curValueText.setTextColor(Color.parseColor("#FFFFFF"))
         curValueText.id = View.generateViewId()
+        cLayout.addView(curValueText, index)
+        index += 1
 
+        val curPercText = TextView(activity)
+        curPercText.textSize = 14F
+        curPercText.id = View.generateViewId()
+        cLayout.addView(curPercText, index)
+        index += 1
 
         for (ticker in tickerListSQL) {
-
-            val values = Gson().fromJson(tickerData.get(ticker.ticker), StockData::class.java)
-            curValue += values.lastPrice * amountOwned
+            val values =
+                Gson().fromJson(tickerData.get(ticker.ticker), StockData::class.java) ?: continue
+            curValue += values.lastPrice * ticker.amountOwned
 
             val tickerText = TextView(activity)
             tickerText.text = ticker.ticker
@@ -155,6 +181,7 @@ class StockDataHandler(
 
             val percText = TextView(activity)
             val tempPerc = (values.netChange / values.lastPrice) * 100
+            dailyPM += tempPerc * values.lastPrice * ticker.amountOwned
             if (tempPerc >= 0) {
                 percText.setTextColor(Color.parseColor("#45DE00"))
             } else {
@@ -171,39 +198,68 @@ class StockDataHandler(
             constraintSet.clone(cLayout)
 
             constraintSet.connect(
-                button.id,
+                editInputButton.id,
                 ConstraintSet.TOP,
                 cLayout.id,
                 ConstraintSet.TOP,
                 30
             )
             constraintSet.connect(
-                button.id,
+                editInputButton.id,
                 ConstraintSet.START,
                 cLayout.id,
                 ConstraintSet.START,
                 30
             )
             constraintSet.connect(
-                button.id,
+                editInputButton.id,
                 ConstraintSet.END,
                 cLayout.id,
                 ConstraintSet.END,
                 30
             )
 
-            if (index < 6) {
+            constraintSet.connect(
+                curValueText.id,
+                ConstraintSet.TOP,
+                cLayout.id,
+                ConstraintSet.TOP,
+                30
+            )
+            constraintSet.connect(
+                curValueText.id,
+                ConstraintSet.END,
+                cLayout.id,
+                ConstraintSet.END,
+                30
+            )
+            constraintSet.connect(
+                curPercText.id,
+                ConstraintSet.TOP,
+                curValueText.id,
+                ConstraintSet.BOTTOM,
+                -10
+            )
+            constraintSet.connect(
+                curPercText.id,
+                ConstraintSet.END,
+                cLayout.id,
+                ConstraintSet.END,
+                30
+            )
+
+            if (index < 8) {
                 constraintSet.connect(
                     tickerText.id,
                     ConstraintSet.TOP,
-                    button.id,
+                    editInputButton.id,
                     ConstraintSet.BOTTOM,
                     30
                 )
                 constraintSet.connect(
                     priceText.id,
                     ConstraintSet.TOP,
-                    button.id,
+                    editInputButton.id,
                     ConstraintSet.BOTTOM,
                     30
                 )
@@ -263,205 +319,190 @@ class StockDataHandler(
             lastDesc = descText
             constraintSet.applyTo(cLayout)
         }
+        val tempCurValue = "$" + String.format("%.2f", curValue)
+        curValueText.text = tempCurValue
+
+
+        val tempPercValue = String.format("%.2f", dailyPM / curValue) + "%"
+        if (dailyPM / curValue >= 0) {
+            curPercText.setTextColor(Color.parseColor("#45DE00"))
+        } else {
+            curPercText.setTextColor(Color.parseColor("#FF532F"))
+        }
+        curPercText.text = tempPercValue
         swipeContainer.isRefreshing = false
     }
 
-    private fun generateInputFields() {
-        index = 0
-        cLayout.removeAllViews()
-        val viewChangerButton = Button(activity)
-
-        viewChangerButton.text = "View Stocks"
-        viewChangerButton.setOnClickListener(View.OnClickListener {
-            swipeContainer.isEnabled = true
-            generateTextViews(tickerListSQL)
-        })
-        viewChangerButton.id = View.generateViewId()
-        cLayout.addView(viewChangerButton, index)
-
-        val submitButton = Button(activity)
-        submitButton.text = "Submit"
-
-        submitButton.id = View.generateViewId()
-        cLayout.addView(submitButton, index)
-
+    private fun displayPopulatedList(
+    ) {
         val tickerListSQL: List<UserTickerData> = userDataDao.getData(tab)
-        if (tickerListSQL.isNullOrEmpty()) {
-            displayEmptyInputRow(viewChangerButton, submitButton)
-        } else {
-            displayPopulatedList(tickerListSQL, viewChangerButton, submitButton)
-        }
+        if (!tickerListSQL.isNullOrEmpty()) {
+            index = 0
+            cLayout.removeAllViews()
 
-    }
+            val viewChangerButton = Button(activity)
 
-    private fun displayPopulatedList(sqlTickerList: List<UserTickerData>, viewChangerButton: Button, submitButton: Button) {
-        for (ticker in sqlTickerList) {
-            val constraintSet = ConstraintSet()
-
-            val tickerInput = EditText(activity)
-            tickerInput.hint = "Ticker"
-            tickerInput.setText(ticker.ticker)
-            tickerInput.width = 200
-            tickerInput.height = 60
-            tickerInput.inputType = InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
-            tickerInput.id = View.generateViewId()
-            cLayout.addView(tickerInput, index)
-            index += 1
-
-            val ownedInput = EditText(activity)
-            ownedInput.hint = "# Owned"
-            ownedInput.setText(ticker.amountOwned.toString())
-            ownedInput.width = 240
-            ownedInput.height = 60
-            ownedInput.inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
-            ownedInput.id = View.generateViewId()
-            cLayout.addView(ownedInput, index)
-            index += 1
-
-            val percFolioInput = EditText(activity)
-            percFolioInput.hint = "% Weight"
-            percFolioInput.setText(ticker.folioWeight.toString())
-            percFolioInput.width = 245
-            percFolioInput.height = 60
-            percFolioInput.inputType = InputType.TYPE_CLASS_NUMBER
-            percFolioInput.id = View.generateViewId()
-            cLayout.addView(percFolioInput, index)
-            index += 1
-
-
-            constraintSet.clear(cLayout.id)
-            constraintSet.clone(cLayout)
-
-            constraintSet.connect(
-                viewChangerButton.id,
-                ConstraintSet.TOP,
-                cLayout.id,
-                ConstraintSet.TOP,
-                30
-            )
-            constraintSet.connect(
-                viewChangerButton.id,
-                ConstraintSet.START,
-                cLayout.id,
-                ConstraintSet.START,
-                30
-            )
-            constraintSet.connect(
-                viewChangerButton.id,
-                ConstraintSet.END,
-                cLayout.id,
-                ConstraintSet.END,
-                30
-            )
-
-            if (index < 4) {
-                constraintSet.connect(
-                    tickerInput.id,
-                    ConstraintSet.TOP,
-                    viewChangerButton.id,
-                    ConstraintSet.BOTTOM,
-                    30
-                )
-                constraintSet.connect(
-                    ownedInput.id,
-                    ConstraintSet.TOP,
-                    viewChangerButton.id,
-                    ConstraintSet.BOTTOM,
-                    30
-                )
-                constraintSet.connect(
-                    ownedInput.id,
-                    ConstraintSet.START,
-                    tickerInput.id,
-                    ConstraintSet.END,
-                    12
-                )
-                constraintSet.connect(
-                    percFolioInput.id,
-                    ConstraintSet.TOP,
-                    viewChangerButton.id,
-                    ConstraintSet.BOTTOM,
-                    30
-                )
-                constraintSet.connect(
-                    percFolioInput.id,
-                    ConstraintSet.START,
-                    ownedInput.id,
-                    ConstraintSet.END,
-                    12
-                )
-
-            } else {
-                constraintSet.connect(
-                    tickerInput.id,
-                    ConstraintSet.TOP,
-                    lastTickerInput.id,
-                    ConstraintSet.BOTTOM,
-                    30
-                )
-                constraintSet.connect(
-                    ownedInput.id,
-                    ConstraintSet.TOP,
-                    lastOwnedInput.id,
-                    ConstraintSet.BOTTOM,
-                    30
-                )
-                constraintSet.connect(
-                    ownedInput.id,
-                    ConstraintSet.START,
-                    tickerInput.id,
-                    ConstraintSet.END,
-                    12
-                )
-                constraintSet.connect(
-                    percFolioInput.id,
-                    ConstraintSet.TOP,
-                    lastPercFolioInput.id,
-                    ConstraintSet.BOTTOM,
-                    30
-                )
-                constraintSet.connect(
-                    percFolioInput.id,
-                    ConstraintSet.START,
-                    ownedInput.id,
-                    ConstraintSet.END,
-                    12
-                )
+            viewChangerButton.text = "View Stocks"
+            viewChangerButton.setOnClickListener {
+                swipeContainer.isEnabled = true
+                generateEditButton(true)
             }
-            lastTickerInput = tickerInput
-            lastOwnedInput = ownedInput
-            lastPercFolioInput = percFolioInput
+            viewChangerButton.id = View.generateViewId()
+            cLayout.addView(viewChangerButton, index)
+            index += 1
 
-            constraintSet.connect(
-                submitButton.id,
-                ConstraintSet.TOP,
-                lastTickerInput.id,
-                ConstraintSet.BOTTOM,
-                30
-            )
-            constraintSet.connect(
-                submitButton.id,
-                ConstraintSet.START,
-                cLayout.id,
-                ConstraintSet.START,
-                30
-            )
-            constraintSet.connect(
-                submitButton.id,
-                ConstraintSet.END,
-                cLayout.id,
-                ConstraintSet.END,
-                30
-            )
 
-            constraintSet.applyTo(cLayout)
+            val constraintSet = ConstraintSet()
+            for (ticker in tickerListSQL) {
+                val tickerInput = EditText(activity)
+                tickerInput.hint = "Ticker"
+                tickerInput.setText(ticker.ticker)
+                tickerInput.width = 200
+                tickerInput.height = 60
+                tickerInput.inputType = InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+                tickerInput.id = View.generateViewId()
+                cLayout.addView(tickerInput, index)
+                index += 1
+
+                val ownedInput = EditText(activity)
+                ownedInput.hint = "# Owned"
+                ownedInput.setText(ticker.amountOwned.toString())
+                ownedInput.width = 240
+                ownedInput.height = 60
+                ownedInput.inputType =
+                    InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+                ownedInput.id = View.generateViewId()
+                cLayout.addView(ownedInput, index)
+                index += 1
+
+                val percFolioInput = EditText(activity)
+                percFolioInput.hint = "% Weight"
+                percFolioInput.setText(ticker.folioWeight.toString())
+                percFolioInput.width = 245
+                percFolioInput.height = 60
+                percFolioInput.inputType = InputType.TYPE_CLASS_NUMBER
+                percFolioInput.id = View.generateViewId()
+                cLayout.addView(percFolioInput, index)
+                index += 1
+
+                val tempEditTextList: List<EditText> =
+                    listOf(tickerInput, ownedInput, percFolioInput)
+                editTextList += tempEditTextList
+
+                constraintSet.clear(cLayout.id)
+                constraintSet.clone(cLayout)
+
+                constraintSet.connect(
+                    viewChangerButton.id,
+                    ConstraintSet.TOP,
+                    cLayout.id,
+                    ConstraintSet.TOP,
+                    30
+                )
+                constraintSet.connect(
+                    viewChangerButton.id,
+                    ConstraintSet.START,
+                    cLayout.id,
+                    ConstraintSet.START,
+                    30
+                )
+                constraintSet.connect(
+                    viewChangerButton.id,
+                    ConstraintSet.END,
+                    cLayout.id,
+                    ConstraintSet.END,
+                    30
+                )
+
+                if (index < 5) {
+                    constraintSet.connect(
+                        tickerInput.id,
+                        ConstraintSet.TOP,
+                        viewChangerButton.id,
+                        ConstraintSet.BOTTOM,
+                        20
+                    )
+                    constraintSet.connect(
+                        ownedInput.id,
+                        ConstraintSet.TOP,
+                        viewChangerButton.id,
+                        ConstraintSet.BOTTOM,
+                        20
+                    )
+                    constraintSet.connect(
+                        ownedInput.id,
+                        ConstraintSet.START,
+                        tickerInput.id,
+                        ConstraintSet.END,
+                        16
+                    )
+                    constraintSet.connect(
+                        percFolioInput.id,
+                        ConstraintSet.TOP,
+                        viewChangerButton.id,
+                        ConstraintSet.BOTTOM,
+                        20
+                    )
+                    constraintSet.connect(
+                        percFolioInput.id,
+                        ConstraintSet.START,
+                        ownedInput.id,
+                        ConstraintSet.END,
+                        16
+                    )
+
+                } else {
+                    constraintSet.connect(
+                        tickerInput.id,
+                        ConstraintSet.TOP,
+                        lastTickerInput.id,
+                        ConstraintSet.BOTTOM,
+                        20
+                    )
+                    constraintSet.connect(
+                        ownedInput.id,
+                        ConstraintSet.TOP,
+                        lastOwnedInput.id,
+                        ConstraintSet.BOTTOM,
+                        20
+                    )
+                    constraintSet.connect(
+                        ownedInput.id,
+                        ConstraintSet.START,
+                        tickerInput.id,
+                        ConstraintSet.END,
+                        16
+                    )
+                    constraintSet.connect(
+                        percFolioInput.id,
+                        ConstraintSet.TOP,
+                        lastPercFolioInput.id,
+                        ConstraintSet.BOTTOM,
+                        20
+                    )
+                    constraintSet.connect(
+                        percFolioInput.id,
+                        ConstraintSet.START,
+                        ownedInput.id,
+                        ConstraintSet.END,
+                        16
+                    )
+                }
+                lastTickerInput = tickerInput
+                lastOwnedInput = ownedInput
+                lastPercFolioInput = percFolioInput
+                constraintSet.applyTo(cLayout)
+            }
+
+            displayEmptyInputRow(viewChangerButton, editTextList)
         }
     }
 
-    private fun displayEmptyInputRow(viewChangerButton: Button, submitButton: Button) {
+    private fun displayEmptyInputRow(
+        viewChangerButton: Button,
+        editTextList: MutableList<List<EditText>>
+    ) {
         val constraintSet = ConstraintSet()
-        lateinit var topConstraint: TextView
-
         val tickerInput = EditText(activity)
         tickerInput.hint = "Ticker"
         tickerInput.width = 200
@@ -489,19 +530,16 @@ class StockDataHandler(
         cLayout.addView(percFolioInput, index)
         index += 1
 
-        submitButton.setOnClickListener(View.OnClickListener {
-            if (tickerInput.text.toString().isNotBlank() && ownedInput.text.toString().isNotBlank() && percFolioInput.text.toString().isNotBlank()) {
-                userDataDao.insertData(UserTickerData(tab, tickerInput.text.toString(), 5.0, 100))
-            }
-        })
+        val tempEditTextList: List<EditText> = listOf(tickerInput, ownedInput, percFolioInput)
+        editTextList += tempEditTextList
 
         constraintSet.clear(cLayout.id)
         constraintSet.clone(cLayout)
-        if (index < 4){
-            topConstraint = viewChangerButton
-        }
-        else{
-            topConstraint = lastTickerInput
+
+        val topConstraint: TextView = if (index < 4) {
+            viewChangerButton
+        } else {
+            lastTickerInput
         }
         constraintSet.connect(
             viewChangerButton.id,
@@ -530,40 +568,75 @@ class StockDataHandler(
             ConstraintSet.TOP,
             topConstraint.id,
             ConstraintSet.BOTTOM,
-            30
+            20
         )
         constraintSet.connect(
             ownedInput.id,
             ConstraintSet.TOP,
             topConstraint.id,
             ConstraintSet.BOTTOM,
-            30
+            20
         )
         constraintSet.connect(
             ownedInput.id,
             ConstraintSet.START,
             tickerInput.id,
             ConstraintSet.END,
-            12
+            16
         )
         constraintSet.connect(
             percFolioInput.id,
             ConstraintSet.TOP,
             topConstraint.id,
             ConstraintSet.BOTTOM,
-            30
+            20
         )
         constraintSet.connect(
             percFolioInput.id,
             ConstraintSet.START,
             ownedInput.id,
             ConstraintSet.END,
-            12
+            16
         )
         lastTickerInput = tickerInput
         lastOwnedInput = ownedInput
         lastPercFolioInput = percFolioInput
 
+        constraintSet.applyTo(cLayout)
+    }
+
+    private fun displaySubmitButton() {
+        val constraintSet = ConstraintSet()
+        val submitButton = Button(activity)
+        submitButton.text = "Submit"
+        var folioWeight = 0
+
+        submitButton.id = View.generateViewId()
+        submitButton.setOnClickListener {
+
+            userDataDao.removeTickers(tab)
+            for (textInput in editTextList) {
+                Log.i("name", textInput[0].text.toString())
+                if (textInput[0].text.toString().isNotBlank() && textInput[1].text.toString()
+                        .isNotBlank() && textInput[2].text.toString().isNotBlank()
+                ) {
+                    userDataDao.insertData(
+                        UserTickerData(
+                            tab,
+                            textInput[0].text.toString(),
+                            textInput[1].text.toString().toDouble(),
+                            textInput[2].text.toString().toInt()
+                        )
+                    )
+                    folioWeight += textInput[2].text.toString().toInt()
+                }
+            }
+            fetchStockData()
+        }
+        cLayout.addView(submitButton, index)
+        index += 1
+        constraintSet.clear(cLayout.id)
+        constraintSet.clone(cLayout)
         constraintSet.connect(
             submitButton.id,
             ConstraintSet.TOP,
@@ -585,12 +658,11 @@ class StockDataHandler(
             ConstraintSet.END,
             30
         )
-
         constraintSet.applyTo(cLayout)
-
 
     }
 }
+
 
 @Database(entities = [UserTickerData::class], version = 1)
 abstract class AppDatabase : RoomDatabase() {
